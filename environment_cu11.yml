@@ -1,0 +1,13 @@
+{
+  "channels": [
+    "defaults"
+  ],
+  "dependencies": [
+    "python=3.8.5",
+    "pytorch=1.13.1",
+    "torchvision=0.14.1",
+    "pytorch-cuda=11.7"
+  ],
+  "name": "volsdf_cu11",
+  "prefix": "/scratch/agassol/conda_envs/volsdf_cu11"
+}
