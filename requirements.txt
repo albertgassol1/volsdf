@@ -1,0 +1,7 @@
+opencv-python==4.7.0
+plotly==5.14.0
+tqdm==4.65.0
+pyhocon==0.3.59
+trimesh==3.21.4
+scikit-image==0.20.0
+gputil==1.4.0
