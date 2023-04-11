@@ -2,7 +2,7 @@
 #SBATCH  --output=log/%j.out
 #SBATCH  --gres=gpu:1
 #SBATCH  --error=log/%j.err
-#SBATCH  --mem=40G
+#SBATCH --mem=40G
 source /scratch_net/biwidl204/agassol/conda/etc/profile.d/conda.sh
 conda activate volsdf_cu11
 
@@ -15,7 +15,7 @@ echo "SLURM_JOB_ID:    ${SLURM_JOB_ID}"
 
 cd code
 # Run the python script
-python -u training/exp_runner.py --conf ./confs/dtu.conf --cancel_vis --scan_id "$@"
+python -u evaluation/eval.py  --conf ./confs/dtu.conf --scan_id "$@" --checkpoint latest --gpu ignore #--eval_rendering
 
 # Send more noteworthy information to the output log
 echo "Finished at:     $(date)"
