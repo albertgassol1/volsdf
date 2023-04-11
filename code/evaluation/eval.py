@@ -109,7 +109,7 @@ def evaluate(**kwargs):
                 sdf=lambda x: model.implicit_network(x)[:, 0],
                 resolution=kwargs['resolution'],
                 level=conf.get_int('plot.level', default=0),
-                higher_res=True
+                higher_res=False
             )
 
         # Transform to world coordinates
