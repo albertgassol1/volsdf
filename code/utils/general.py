@@ -1,12 +1,21 @@
+import datetime
 import os
 from glob import glob
+from typing import Any, Dict, List
+
 import torch
 
-def mkdir_ifnotexists(directory):
+
+def get_timestamp() -> str:
+    return datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+
+
+def mkdir_ifnotexists(directory: str) -> None:
     if not os.path.exists(directory):
         os.mkdir(directory)
 
-def get_class(kls):
+
+def get_class(kls: str) -> object:
     parts = kls.split('.')
     module = ".".join(parts[:-1])
     m = __import__(module)
@@ -14,13 +23,15 @@ def get_class(kls):
         m = getattr(m, comp)
     return m
 
-def glob_imgs(path):
+
+def glob_imgs(path: str) -> List[Any]:
     imgs = []
     for ext in ['*.png', '*.jpg', '*.JPEG', '*.JPG']:
         imgs.extend(glob(os.path.join(path, ext)))
     return imgs
 
-def split_input(model_input, total_pixels, n_pixels=10000):
+
+def split_input(model_input: Dict[str, Any], total_pixels: int, n_pixels: int = 10000) -> List[Any]:
     '''
      Split the input to fit Cuda memory for large resolution.
      Can decrease the value of n_pixels in case of cuda out of memory error.
@@ -34,7 +45,8 @@ def split_input(model_input, total_pixels, n_pixels=10000):
         split.append(data)
     return split
 
-def merge_output(res, total_pixels, batch_size):
+
+def merge_output(res: List[Any], total_pixels: int, batch_size: int) -> Dict[str, Any]:
     ''' Merge the split output. '''
 
     model_outputs = {}
@@ -50,5 +62,6 @@ def merge_output(res, total_pixels, batch_size):
 
     return model_outputs
 
-def concat_home_dir(path):
-    return os.path.join(os.environ['HOME'],'data',path)
+
+def concat_home_dir(path: str) -> str:
+    return os.path.join(os.environ['HOME'], 'data', path)
