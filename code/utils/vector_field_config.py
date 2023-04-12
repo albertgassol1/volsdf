@@ -1,7 +1,5 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Union
-
-from pyhocon import ConfigFactory
 
 
 @dataclass(frozen=True)
@@ -9,10 +7,10 @@ class VectorFieldNetworkConfig:
     input_dims: int = 3
     output_dims: int = 3
     feature_vector_dims: int = 0
-    dimensions: List[int] = ConfigFactory.parse_string('[256, 256, 256, 256, 256, 256, 256, 256]')
+    dimensions: List[int] = field(default_factory=lambda: [256, 256, 256, 256, 256, 256, 256, 256])
     embedder_multires: int = 0
     weight_norm: bool = True
-    skip_connection_in: List[int] = ConfigFactory.parse_string('[4]')
+    skip_connection_in: List[int] = field(default_factory=lambda: [4])
     bias_init: float = 0.0
     dropout: bool = True
     dropout_probability: float = 0.2
@@ -53,7 +51,7 @@ class VectorFieldConfig:
     model_params_folder: str = "ModelParameters"
     optimizer_params_folder: str = "OptimizerParameters"
     scheduler_params_folder: str = "SchedulerParameters"
-    config_path: str = "./conf/vector_field.conf"
+    config_path: str = "./confs/vector_field.conf"
     checkpoint: str = "latest"
     checkpoint_frequency: int = 100
     epsilon_border: float = 0.25

@@ -51,6 +51,7 @@ def parse_config(n_epochs: Optional[int],
     vector_field_config.checkpoint = checkpoint
     vector_field_config.timestamp = timestamp
     vector_field_config.is_continue = is_continue
+    vector_field_config.config_path = vector_field_config_path
 
     # Parse VolSDF configuration
     vol_sdf_raw_config = ConfigFactory.parse_file(vol_sdf_config_path)

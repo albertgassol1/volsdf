@@ -13,7 +13,23 @@ class Sampler(ABC):
         """
 
         # Store the number of samples.
-        self.number_of_samples = number_of_samples
+        self._number_of_samples = number_of_samples
+
+    @property
+    def number_of_samples(self) -> int:
+        """
+        Get the number of samples.
+        :returns: The number of samples.
+        """
+        return self._number_of_samples
+
+    @number_of_samples.setter
+    def number_of_samples(self, n_samples: int) -> None:
+        """
+        Set the number of samples.
+        :param n_samples: New number of samples.
+        """
+        self._number_of_samples = n_samples
 
     @abstractmethod
     def sample(self) -> torch.Tensor:
@@ -115,10 +131,10 @@ class SDFSampler(Sampler):
         self.upsampling_radius = torch.tensor([upsampling_radius]).to(min_bounds.device)
 
         # Store the SDF network.
-        self.sdf_network = network
+        self._sdf_network = network
 
         # Set the network to eval mode.
-        self.sdf_network.eval()
+        self._sdf_network.eval()
 
     @property
     def max_bounds(self) -> torch.Tensor:
@@ -138,6 +154,14 @@ class SDFSampler(Sampler):
 
         return self.uniform_sampler.min_bounds
 
+    @property
+    def sdf_network(self) -> ImplicitNetwork:
+        """
+        Get the SDF network.
+        :returns: The SDF network.
+        """
+        return self._sdf_network
+
     def sample(self) -> torch.Tensor:
         """
         Sample a set of points.
@@ -146,10 +170,10 @@ class SDFSampler(Sampler):
         """
 
         # Sample the uniform points.
-        points, _ = self.uniform_sampler.sample()
+        points = self.uniform_sampler.sample()
 
         # Compute the SDF values.
-        sdf_values: torch.Tensor = self.sdf_network(points)
+        sdf_values: torch.Tensor = self._sdf_network(points)[:, 0]
 
         # Compute areas to upsample.
         centroids_to_upsample = torch.where(torch.abs(sdf_values) < self.sdf_epsilon)[0]
@@ -166,12 +190,14 @@ class SDFSampler(Sampler):
             points = torch.cat((points, points_to_upsample), dim=0)
 
         # If there were too many centroids, sample the remaining allowed points in the next centroid.
-        if centroids_to_upsample.shape[0] > int(self.max_n_samples / self.n_upsample):
+        if centroids_to_upsample.shape[0] > int(self.max_n_samples / self.n_upsample) and \
+                points.shape[0] < self.max_n_samples + self.number_of_samples:
             # Get the centroid.
             centroid = points[centroids_to_upsample[int(self.max_n_samples / self.n_upsample)]]
 
             # Sample the points.
-            points_to_upsample = self.__upsample_region(centroid, self.max_n_samples - points.shape[0])
+            points_to_upsample = self.__upsample_region(centroid, self.max_n_samples + self.number_of_samples -
+                                                        points.shape[0])
 
             # Add the points to the list.
             points = torch.cat((points, points_to_upsample), dim=0)
@@ -291,6 +317,7 @@ class VectorFieldSampler(Sampler):
         sdf_points = self.sdf_sampler.sample()
 
         # Sample the unit vectors.
+        self.unit_vector_sampler.number_of_samples = sdf_points.shape[0]
         unit_vectors = self.unit_vector_sampler.sample()
 
         # Compute the positive points.
@@ -300,8 +327,8 @@ class VectorFieldSampler(Sampler):
         negative_points = sdf_points - unit_vectors * self.delta
 
         # Compute the SDF values.
-        positive_points_sdf = self.sdf_sampler.sdf_network(positive_points)
-        negative_points_sdf = self.sdf_sampler.sdf_network(negative_points)
+        positive_points_sdf = self.sdf_sampler.sdf_network(positive_points)[:, :1]
+        negative_points_sdf = self.sdf_sampler.sdf_network(negative_points)[:, :1]
 
         # Concatenate the points and the SDF values.
         # TODO: Check if dimensions are correct.

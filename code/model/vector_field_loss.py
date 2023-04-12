@@ -8,7 +8,7 @@ class VectorFieldLoss(nn.Module):
         VectorFieldLoss class for the vector field loss.
         """
         # Initialize the super class.
-        super(VectorFieldLoss, self).__init__()
+        super().__init__()
 
         # Create the cosine similarity
         self.cosine_similarity = nn.CosineSimilarity(dim=1)
@@ -19,8 +19,8 @@ class VectorFieldLoss(nn.Module):
         # Create the vector field loss.
         self.vector_field_loss = nn.L1Loss()
 
-    def forward(self, 
-                vector_field_1: torch.Tensor, 
+    def forward(self,
+                vector_field_1: torch.Tensor,
                 vector_field_2: torch.Tensor,
                 cosine_ground_truth: torch.Tensor,
                 vector_field_ground_truth: torch.Tensor,
@@ -28,7 +28,7 @@ class VectorFieldLoss(nn.Module):
         """
         Forward pass of the vector field loss.
         :params vector_field_1: The first vector field.
-        :params vector_field_2: The second vector field, 
+        :params vector_field_2: The second vector field,
         associated to a position close to the first vector field position.
         :params cosine_ground_truth: The ground truth cosine similarity.
         :params vector_field_ground_truth: The ground truth vector field.
@@ -42,7 +42,8 @@ class VectorFieldLoss(nn.Module):
         cosine_loss = self.cosine_loss(cosine_similarity, cosine_ground_truth)
 
         # Compute the vector field loss.
-        vector_field_loss = vector_field_weight * self.vector_field_loss(vector_field_1, vector_field_ground_truth)
+        vector_field_loss = self.vector_field_loss(vector_field_weight[:, None] * vector_field_1,
+                                                   vector_field_weight[:, None] * vector_field_ground_truth)
 
         # Compute the total loss.
         total_loss = cosine_loss + vector_field_loss

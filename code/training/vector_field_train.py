@@ -1,4 +1,5 @@
 import os
+import shutil
 import sys
 import time
 from dataclasses import asdict
@@ -8,7 +9,6 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 import utils.general as utils
-from distutils.dir_util import copy_tree
 from model.network import VolSDFNetwork
 from model.vector_field import VectorField
 from model.vector_field_loss import VectorFieldLoss
@@ -45,16 +45,17 @@ class VectorFieldRunner:
         # Run checks.
         self.__run_checks()
 
-        # Load volSDF network.
-        self.volSDF_network = VolSDFNetwork(conf=volsdf_config)
+        # Load volSDF network and get the sdf network.
+        volSDF_network = VolSDFNetwork(conf=volsdf_config)
 
         # Load volSDF network parameters.
         expdir = os.path.join('../', self.config.volsdf_config.experiment_folder_name,
                               self.config.volsdf_config.expname)
         checkpoints_dir = os.path.join(expdir, self.config.volsdf_config.timestamp)
-        saved_model_state = torch.load(os.path.join(checkpoints_dir, 'ModelParameters',
+        saved_model_state = torch.load(os.path.join(checkpoints_dir, 'checkpoints', 'ModelParameters',
                                                     self.config.volsdf_config.check_point + ".pth"))
-        self.volSDF_network.load_state_dict(saved_model_state["model_state_dict"])
+        volSDF_network.load_state_dict(saved_model_state["model_state_dict"])
+        self.sdf_network = volSDF_network.implicit_network
 
         # Create vector field folders.
         self.__create_vector_field_folders()
@@ -63,24 +64,24 @@ class VectorFieldRunner:
         if self.config.vector_field_config.gpu_index == "ignore":
             self.device = torch.device("cpu")
         else:
-            self.device = torch.device("cuda:" + self.config.vector_field_config.gpu_index
+            self.device = torch.device(f"cuda:{self.config.vector_field_config.gpu_index}"
                                        if torch.cuda.is_available() else "cpu")
 
         # Set the device for the networks.
         self.network.to(self.device)
-        self.volSDF_network.to(self.device)
+        self.sdf_network.to(self.device)
 
         # Freeze the volSDF network.
-        for param in self.volSDF_network.parameters():
+        for param in self.sdf_network.parameters():
             param.requires_grad = False
-        self.volSDF_network.eval()
+        self.sdf_network.eval()
 
         # Get the min and max bounds of the sampler
         min_bounds, max_bounds = self.__get_sampler_bounds()
 
         # Create the sampler.
         sampler_args = asdict(self.config.vector_field_sampler)
-        sampler_args["network"] = self.volSDF_network
+        sampler_args["network"] = self.sdf_network
         sampler_args["min_bounds"] = min_bounds
         sampler_args["max_bounds"] = max_bounds
         self.sampler = VectorFieldSampler(**sampler_args)
@@ -105,7 +106,8 @@ class VectorFieldRunner:
         if self.config.volsdf_config.scan_id != -1:
             self.config.volsdf_config.expname += f"_{self.config.volsdf_config.scan_id}"
         if self.config.volsdf_config.timestamp == "latest":
-            if os.path.exists(os.path.join("../", self.config.volsdf_config.experiment_folder_name, self.config.volsdf_config.expname)):
+            if os.path.exists(os.path.join("../", self.config.volsdf_config.experiment_folder_name,
+                                           self.config.volsdf_config.expname)):
                 timestamps = os.listdir(os.path.join(
                     "../", self.config.volsdf_config.experiment_folder_name, self.config.volsdf_config.expname))
                 if len(timestamps) == 0:
@@ -114,7 +116,8 @@ class VectorFieldRunner:
                 for t in sorted(timestamps):
                     if os.path.exists(os.path.join("../", self.config.volsdf_config.experiment_folder_name,
                                                    self.config.volsdf_config.expname, t, "checkpoints",
-                                                   "ModelParameters", str(self.config.volsdf_config.check_point) + ".pth")):
+                                                   "ModelParameters", str(self.config.volsdf_config.check_point) +
+                                                   ".pth")):
                         self.config.volsdf_config.timestamp = t
                 if self.config.volsdf_config.timestamp is None:
                     raise Exception("No good timestamp.")
@@ -130,9 +133,11 @@ class VectorFieldRunner:
             self.config.vector_field_config.expname += f"_{self.config.volsdf_config.scan_id}"
 
         if self.config.vector_field_config.is_continue and self.config.vector_field_config.timestamp == "latest":
-            if os.path.exists(os.path.join("../", self.config.vector_field_config.experiment_folder_name, self.config.vector_field_config.expname)):
+            if os.path.exists(os.path.join("../", self.config.vector_field_config.experiment_folder_name,
+                                           self.config.vector_field_config.expname)):
                 timestamps = os.listdir(os.path.join(
-                    "../", self.config.vector_field_config.experiment_folder_name, self.config.vector_field_config.expname))
+                    "../", self.config.vector_field_config.experiment_folder_name,
+                    self.config.vector_field_config.expname))
                 if len(timestamps) == 0:
                     self.config.vector_field_config.is_continue = False
                     self.config.vector_field_config.timestamp = None
@@ -145,16 +150,19 @@ class VectorFieldRunner:
 
         # Create the experiment folder.
         utils.mkdir_ifnotexists(os.path.join("../", self.config.vector_field_config.experiment_folder_name))
-        self.config.vector_field_config.experiment_dir = os.path.join("../", self.config.vector_field_config.experiment_folder_name,
-                                                                      self.config.vector_field_config.expname)
+        self.config.vector_field_config.experiment_dir = \
+            os.path.join("../", self.config.vector_field_config.experiment_folder_name,
+                         self.config.vector_field_config.expname)
+        utils.mkdir_ifnotexists(self.config.vector_field_config.experiment_dir)
         self.config.vector_field_config.new_timestamp = utils.get_timestamp()
         utils.mkdir_ifnotexists(os.path.join(self.config.vector_field_config.experiment_dir,
                                              self.config.vector_field_config.new_timestamp))
 
         # Create the checkpoints folder.
-        self.config.vector_field_config.check_points_folder = os.path.join(self.config.vector_field_config.experiment_dir,
-                                                                           self.config.vector_field_config.new_timestamp,
-                                                                           "checkpoints")
+        self.config.vector_field_config.check_points_folder = \
+            os.path.join(self.config.vector_field_config.experiment_dir,
+                         self.config.vector_field_config.new_timestamp,
+                         "checkpoints")
         utils.mkdir_ifnotexists(self.config.vector_field_config.check_points_folder)
 
         # Create folders for the model parameters, the optimizer parameters, and the scheduler parameters.
@@ -166,9 +174,9 @@ class VectorFieldRunner:
                                              self.config.vector_field_config.scheduler_params_folder))
 
         # Copy the configuration folder.
-        copy_tree(self.config.vector_field_config.config_path,
-                  os.path.join(self.config.vector_field_config.experiment_dir,
-                               self.config.vector_field_config.new_timestamp, 'runconf.conf'))
+        shutil.copy2(self.config.vector_field_config.config_path,
+                     os.path.join(self.config.vector_field_config.experiment_dir,
+                                  self.config.vector_field_config.new_timestamp, 'runconf.conf'))
 
         # Copy the shell command.
         print(f"shell command : {sys.argv}")
@@ -187,16 +195,18 @@ class VectorFieldRunner:
         self.network.load_state_dict(saved_model['model_state_dict'])
 
         # Load the optimizer parameters.
-        self.optimizer.load_state_dict(torch.load(os.path.join(cehckpoint_path,
-                                                               self.config.vector_field_config.optimizer_params_folder,
-                                                               str(self.config.vector_field_config.checkpoint) + ".pth"))
-                                       ['optimizer_state_dict'])
+        self.optimizer.load_state_dict(
+            torch.load(os.path.join(cehckpoint_path,
+                       self.config.vector_field_config.optimizer_params_folder,
+                       str(self.config.vector_field_config.checkpoint) + ".pth"))
+            ['optimizer_state_dict'])
 
         # Load the scheduler parameters.
-        self.scheduler.load_state_dict(torch.load(os.path.join(cehckpoint_path,
-                                                               self.config.vector_field_config.scheduler_params_folder,
-                                                               str(self.config.vector_field_config.checkpoint) + ".pth"))
-                                       ['scheduler_state_dict'])
+        self.scheduler.load_state_dict(
+            torch.load(os.path.join(cehckpoint_path,
+                       self.config.vector_field_config.scheduler_params_folder,
+                       str(self.config.vector_field_config.checkpoint) + ".pth"))
+            ['scheduler_state_dict'])
 
         return int(saved_model['epoch'])
 
@@ -259,9 +269,6 @@ class VectorFieldRunner:
         Train the network.
         """
 
-        # Set the network to train mode.
-        self.network.train()
-
         # Start training.
         for epoch in range(self.start_epoch, self.config.vector_field_config.n_epochs):
 
@@ -311,6 +318,9 @@ class VectorFieldRunner:
         # Print the loss.
         print(f"Epoch {epoch} loss: {loss.item()}")
 
+        # Take a scheduler step
+        self.scheduler.step()
+
     def __get_ground_truth(self, inputs: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Get the ground truth from the inputs.
@@ -341,19 +351,25 @@ class VectorFieldRunner:
         max_bounds = self.sampler.max_bounds
         min_bounds = self.sampler.min_bounds
         # Get indices of positive points close the bounds.
-        condition = torch.logical_or(positive_points[:, 0] > max_bounds[0] - self.config.vector_field_config.epsilon_border,
-                                     positive_points[:, 1] > max_bounds[1] - self.config.vector_field_config.epsilon_border)
-        condition = torch.logical_or(condition,
-                                     positive_points[:, 2] > max_bounds[2] - self.config.vector_field_config.epsilon_border)
-        condition = torch.logical_or(condition,
-                                     positive_points[:, 0] < min_bounds[0] + self.config.vector_field_config.epsilon_border)
-        condition = torch.logical_or(condition,
-                                     positive_points[:, 1] < min_bounds[1] + self.config.vector_field_config.epsilon_border)
-        condition = torch.logical_or(condition,
-                                     positive_points[:, 2] < min_bounds[2] + self.config.vector_field_config.epsilon_border)
+        condition = \
+            torch.logical_or(positive_points[:, 0] > max_bounds[0] - self.config.vector_field_config.epsilon_border,
+                             positive_points[:, 1] > max_bounds[1] - self.config.vector_field_config.epsilon_border)
+        condition = \
+            torch.logical_or(condition,
+                             positive_points[:, 2] > max_bounds[2] - self.config.vector_field_config.epsilon_border)
+        condition = \
+            torch.logical_or(condition,
+                             positive_points[:, 0] < min_bounds[0] + self.config.vector_field_config.epsilon_border)
+        condition = \
+            torch.logical_or(condition,
+                             positive_points[:, 1] < min_bounds[1] + self.config.vector_field_config.epsilon_border)
+        condition = \
+            torch.logical_or(condition,
+                             positive_points[:, 2] < min_bounds[2] + self.config.vector_field_config.epsilon_border)
         indices_close_to_bounds = torch.where(condition)[0]
 
-        # Generate vector 1 ground truth. Generate normal unit vectors pointing towards the center (considered to be (0,0,0)).
+        # Generate vector 1 ground truth.
+        # Generate normal unit vectors pointing towards the center (considered to be (0,0,0)).
         vetor_1_gt = torch.zeros(inputs.shape[0], 3).to(self.device)
         vector_1_gt_weights = torch.zeros(inputs.shape[0]).to(self.device)
         vetor_1_gt[indices_close_to_bounds] = F.normalize(-positive_points[indices_close_to_bounds], p=2, dim=1)
