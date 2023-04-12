@@ -1,23 +1,23 @@
-from torch import nn
+from typing import List, Optional
+
 import torch
 import torch.nn.functional as F
-
-from model.embedder import get_embedder, Embedder
-from typing import List, Optional
+from model.embedder import Embedder, get_embedder
+from torch import nn
 
 
 class VectorField(nn.Module):
-    def __init__(self, input_dims: int, 
-                 output_dims: int, 
+    def __init__(self,
+                 input_dims: int,
+                 output_dims: int,
                  feature_vector_dims: int,
-                 dimensions: List[int], 
+                 dimensions: List[int],
                  embedder_multires: Optional[int] = 0,
                  weight_norm: Optional[bool] = True,
                  skip_connection_in: Optional[List[int]] = None,
                  bias_init: Optional[float] = 0.0,
                  dropout: Optional[bool] = True,
                  dropout_probability: Optional[float] = 0.0) -> None:
-        
         """
         VectorField class for the vector field network.
         :params input_dims: The number of input dimensions.
@@ -33,7 +33,7 @@ class VectorField(nn.Module):
         """
 
         # Initialize the super class.
-        super(VectorField, self).__init__()
+        super().__init__()
 
         # Add input and output dimensions to the dimensions list.
         dimensions = [input_dims] + dimensions + [output_dims]
@@ -52,7 +52,7 @@ class VectorField(nn.Module):
         self.skip_connection_in = skip_connection_in
         if self.skip_connection_in is None:
             self.skip_connection_in = []
-        
+
         # Create the layers.
         for i in range(self.num_layers):
             # Create layers
@@ -92,7 +92,7 @@ class VectorField(nn.Module):
         # Embed the input.
         if self.embedder is not None:
             input_tensor = self.embedder(input_tensor)
-        
+
         # Pass through the layers.
         x = input_tensor
         for i in range(self.num_layers):
@@ -107,12 +107,10 @@ class VectorField(nn.Module):
                 x = self.activation(x)
             else:
                 x = self.last_activation(x)
-            
+
             # Apply dropout.
             if self.dropout and i < self.num_layers - 1:
                 x = F.dropout(x, p=self.dropout_probability, training=self.training)
-        
+
         # Return the output.
         return x
-
-

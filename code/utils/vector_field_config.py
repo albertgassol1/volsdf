@@ -6,8 +6,7 @@ from pyhocon import ConfigFactory
 
 @dataclass(frozen=True)
 class VectorFieldNetworkConfig:
-    # Hyperparameters
-    input_dims: int = 256
+    input_dims: int = 3
     output_dims: int = 3
     feature_vector_dims: int = 0
     dimensions: List[int] = ConfigFactory.parse_string('[256, 256, 256, 256, 256, 256, 256, 256]')
@@ -21,7 +20,6 @@ class VectorFieldNetworkConfig:
 
 @dataclass(frozen=True)
 class VectorFieldSamplerConfig:
-    # Sampling
     number_of_samples: int = 1000
     n_upsample: int = 20
     max_n_samples: int = 1000
