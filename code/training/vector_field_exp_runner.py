@@ -4,11 +4,11 @@ from typing import Optional, Union
 import fire
 import GPUtil
 from pyhocon import ConfigFactory
+
+sys.path.append('../code')
 from training.vector_field_train import VectorFieldRunner
 from utils.vector_field_config import Config, VectorFieldConfig, VectorFieldNetworkConfig, VectorFieldSamplerConfig, \
     VolSDFConfig
-
-sys.path.append('../code')
 
 
 def parse_config(n_epochs: Optional[int],
