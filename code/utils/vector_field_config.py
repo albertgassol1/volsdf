@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import List
+from typing import List, Union
 
 from pyhocon import ConfigFactory
 
@@ -34,7 +34,6 @@ class VectorFieldSamplerConfig:
 class VolSDFConfig:
     expname: str = "dtu"
     experiment_folder_name: str = "exps"
-    data_dir: str = "DTU"
     scan_id: int = 65
     timestamp: str = "2021-05-18_15-00-00"
     check_point: str = "latest"
@@ -44,7 +43,7 @@ class VolSDFConfig:
 class VectorFieldConfig:
     learning_rate: float = 0.0001
     scheduler_decay_rate: float = 0.1
-    gpu_index: str = "ignore"
+    gpu_index: Union[int, str] = "ignore"
     n_epochs: int = 100000
     expname: str = "dtu"
     experiment_folder_name: str = "exps_vector_field"
@@ -57,14 +56,14 @@ class VectorFieldConfig:
     optimizer_params_folder: str = "OptimizerParameters"
     scheduler_params_folder: str = "SchedulerParameters"
     config_path: str = "./conf/vector_field.conf"
-    checkpoint: int = 0
+    checkpoint: str = "latest"
     checkpoint_frequency: int = 100
     epsilon_border: float = 0.25
 
 
 @dataclass(frozen=True)
 class Config:
-    vector_field_network: VectorFieldNetworkConfig = VectorFieldNetworkConfig()
-    vector_field_sampler: VectorFieldSamplerConfig = VectorFieldSamplerConfig()
-    volsdf_config: VolSDFConfig = VolSDFConfig()
     vector_field_config: VectorFieldConfig = VectorFieldConfig()
+    volsdf_config: VolSDFConfig = VolSDFConfig()
+    vector_field_sampler: VectorFieldSamplerConfig = VectorFieldSamplerConfig()
+    vector_field_network: VectorFieldNetworkConfig = VectorFieldNetworkConfig()
