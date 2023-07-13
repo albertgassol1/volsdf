@@ -1,10 +1,10 @@
-import torch.nn as nn
 import numpy as np
-
-from utils import rend_util
-from model.embedder import *
+import torch.nn as nn
 from model.density import LaplaceDensity
+from model.embedder import *
 from model.ray_sampler import ErrorBoundSampler
+from utils import rend_util
+
 
 class ImplicitNetwork(nn.Module):
     def __init__(
@@ -88,7 +88,7 @@ class ImplicitNetwork(nn.Module):
 
     def gradient(self, x):
         x.requires_grad_(True)
-        y = self.forward(x)[:,:1]
+        y = self.forward(x)[:, :1]
         d_output = torch.ones_like(y, requires_grad=False, device=y.device)
         gradients = torch.autograd.grad(
             outputs=y,
@@ -102,10 +102,10 @@ class ImplicitNetwork(nn.Module):
     def get_outputs(self, x):
         x.requires_grad_(True)
         output = self.forward(x)
-        sdf = output[:,:1]
+        sdf = output[:, :1]
         ''' Clamping the SDF with the scene bounding sphere, so that all rays are eventually occluded '''
         if self.sdf_bounding_sphere > 0.0:
-            sphere_sdf = self.sphere_scale * (self.sdf_bounding_sphere - x.norm(2,1, keepdim=True))
+            sphere_sdf = self.sphere_scale * (self.sdf_bounding_sphere - x.norm(2, 1, keepdim=True))
             sdf = torch.minimum(sdf, sphere_sdf)
         feature_vectors = output[:, 1:]
         d_output = torch.ones_like(sdf, requires_grad=False, device=sdf.device)
@@ -120,10 +120,10 @@ class ImplicitNetwork(nn.Module):
         return sdf, feature_vectors, gradients
 
     def get_sdf_vals(self, x):
-        sdf = self.forward(x)[:,:1]
+        sdf = self.forward(x)[:, :1]
         ''' Clamping the SDF with the scene bounding sphere, so that all rays are eventually occluded '''
         if self.sdf_bounding_sphere > 0.0:
-            sphere_sdf = self.sphere_scale * (self.sdf_bounding_sphere - x.norm(2,1, keepdim=True))
+            sphere_sdf = self.sphere_scale * (self.sdf_bounding_sphere - x.norm(2, 1, keepdim=True))
             sdf = torch.minimum(sdf, sphere_sdf)
         return sdf
 
@@ -186,6 +186,7 @@ class RenderingNetwork(nn.Module):
         x = self.sigmoid(x)
         return x
 
+
 class VolSDFNetwork(nn.Module):
     def __init__(self, conf):
         super().__init__()
@@ -194,7 +195,8 @@ class VolSDFNetwork(nn.Module):
         self.white_bkgd = conf.get_bool('white_bkgd', default=False)
         self.bg_color = torch.tensor(conf.get_list("bg_color", default=[1.0, 1.0, 1.0])).float().cuda()
 
-        self.implicit_network = ImplicitNetwork(self.feature_vector_size, 0.0 if self.white_bkgd else self.scene_bounding_sphere, **conf.get_config('implicit_network'))
+        self.implicit_network = ImplicitNetwork(
+            self.feature_vector_size, 0.0 if self.white_bkgd else self.scene_bounding_sphere, **conf.get_config('implicit_network'))
         self.rendering_network = RenderingNetwork(self.feature_vector_size, **conf.get_config('rendering_network'))
 
         self.density = LaplaceDensity(**conf.get_config('density'))
@@ -219,7 +221,7 @@ class VolSDFNetwork(nn.Module):
         points = cam_loc.unsqueeze(1) + z_vals.unsqueeze(2) * ray_dirs.unsqueeze(1)
         points_flat = points.reshape(-1, 3)
 
-        dirs = ray_dirs.unsqueeze(1).repeat(1,N_samples,1)
+        dirs = ray_dirs.unsqueeze(1).repeat(1, N_samples, 1)
         dirs_flat = dirs.reshape(-1, 3)
 
         sdf, feature_vectors, gradients = self.implicit_network.get_outputs(points_flat)
@@ -230,6 +232,7 @@ class VolSDFNetwork(nn.Module):
         weights = self.volume_rendering(z_vals, sdf)
 
         rgb_values = torch.sum(weights.unsqueeze(-1) * rgb, 1)
+        depth_values = torch.sum(weights.unsqueeze(-1) * z_vals.unsqueeze(-1), dim=1)
 
         # white background assumption
         if self.white_bkgd:
@@ -238,12 +241,14 @@ class VolSDFNetwork(nn.Module):
 
         output = {
             'rgb_values': rgb_values,
+            'depth_values': depth_values
         }
 
         if self.training:
             # Sample points for the eikonal loss
             n_eik_points = batch_size * num_pixels
-            eikonal_points = torch.empty(n_eik_points, 3).uniform_(-self.scene_bounding_sphere, self.scene_bounding_sphere).cuda()
+            eikonal_points = torch.empty(n_eik_points, 3).uniform_(-self.scene_bounding_sphere,
+                                                                   self.scene_bounding_sphere).cuda()
 
             # add some of the near surface points
             eik_near_points = (cam_loc.unsqueeze(1) + z_samples_eik.unsqueeze(2) * ray_dirs.unsqueeze(1)).reshape(-1, 3)
@@ -271,9 +276,11 @@ class VolSDFNetwork(nn.Module):
 
         # LOG SPACE
         free_energy = dists * density
-        shifted_free_energy = torch.cat([torch.zeros(dists.shape[0], 1).cuda(), free_energy[:, :-1]], dim=-1)  # shift one step
+        shifted_free_energy = torch.cat([torch.zeros(dists.shape[0], 1).cuda(),
+                                        free_energy[:, :-1]], dim=-1)  # shift one step
         alpha = 1 - torch.exp(-free_energy)  # probability of it is not empty here
-        transmittance = torch.exp(-torch.cumsum(shifted_free_energy, dim=-1))  # probability of everything is empty up to now
-        weights = alpha * transmittance # probability of the ray hits something here
+        # probability of everything is empty up to now
+        transmittance = torch.exp(-torch.cumsum(shifted_free_energy, dim=-1))
+        weights = alpha * transmittance  # probability of the ray hits something here
 
         return weights
