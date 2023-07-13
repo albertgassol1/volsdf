@@ -2,6 +2,9 @@
 #SBATCH  --output=log/%j.out
 #SBATCH  --gres=gpu:1
 #SBATCH  --error=log/%j.err
+#SBATCH  --mem=40G
+#SBATCH  --cpus-per-task=4
+
 source /scratch_net/biwidl204/agassol/conda/etc/profile.d/conda.sh
 conda activate volsdf_cu11
 
