@@ -2,6 +2,7 @@ import argparse
 import os
 import sys
 
+sys.path.append('../code')
 import GPUtil
 import numpy as np
 import pandas as pd
@@ -13,7 +14,6 @@ from pyhocon import ConfigFactory
 from tqdm import tqdm
 from utils import rend_util
 
-sys.path.append('../code')
 
 
 def evaluate(**kwargs):
