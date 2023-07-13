@@ -159,7 +159,7 @@ def evaluate(**kwargs):
             depth_eval = plt.lin2img(depth_eval, (img_res[0], img_res[1], 1)).detach().cpu().numpy()[0]
             rgb_eval = rgb_eval.transpose(1, 2, 0)
             depth_eval = depth_eval.transpose(1, 2, 0)
-            np.save(os.path.join(f"{images_dir}", f"depth-{indices[0]}"))
+            np.save(os.path.join(f"{images_dir}", f"depth-{indices[0]}"), depth_eval)
             img = Image.fromarray((rgb_eval * 255).astype(np.uint8))
             img.save('{}/eval_{}.png'.format(images_dir, '%03d' % indices[0]))
 
