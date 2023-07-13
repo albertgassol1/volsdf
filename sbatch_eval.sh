@@ -2,7 +2,6 @@
 #SBATCH  --output=log/%j.out
 #SBATCH  --gres=gpu:1
 #SBATCH  --error=log/%j.err
-#SBATCH --constraint="pascal"
 source /scratch_net/biwidl204/agassol/conda/etc/profile.d/conda.sh
 conda activate volsdf_cu11
 
@@ -15,7 +14,7 @@ echo "SLURM_JOB_ID:    ${SLURM_JOB_ID}"
 
 cd code
 # Run the python script
-python -u evaluation/eval.py  --conf ./confs/dtu.conf --scan_id "$@" --checkpoint latest --gpu ignore #--eval_rendering
+python -u evaluation/eval.py --scan_id 65 --gpu auto --timestamp 2023_04_05_19_45_40 --eval_rendering
 
 # Send more noteworthy information to the output log
 echo "Finished at:     $(date)"
